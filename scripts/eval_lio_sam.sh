@@ -71,6 +71,10 @@ PYEOF
   evo_ape tum "$WORK/gt.tum" "$EST" -a --plot --plot_mode xyz \
     --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -8
 
+  echo "[*] 3.5/4 轨迹叠加图 (evo_traj)"
+  evo_traj tum "$WORK/gt.tum" "$EST" --ref "$WORK/gt.tum" -a -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
+  evo_traj tum "$WORK/gt.tum" "$EST" --ref "$WORK/gt.tum" -a -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
+
   echo "[*] 4/4 计算 RPE (平移, delta=1m)"
   evo_rpe tum "$WORK/gt.tum" "$EST" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
     --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -8
@@ -118,13 +122,19 @@ PYEOF
   echo "[*] 4/4 计算 ATE 2D (eval_2d.py)"
   python3 "$SELF_DIR/eval_2d.py" "$WORK/est_rel.tum" "$GT_REL" "$WORK/est_aligned.tum"
 
+  echo "[*] 4.5/4 evo 全套图 (traj_cmp / APE / RPE)"
+  evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
+  evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
+  evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+  evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+
   DEST="/hy-tmp/results/lio_sam/$(date +%F)/$(date +%H-%M)/$DS/eval"
   mkdir -p "$DEST"
   cp "$EST" "$DEST/est.tum"
   cp "$WORK/est_rel.tum" "$DEST/est_rel.tum"
   cp "$WORK/est_aligned.tum" "$DEST/est_aligned.tum"
   cp "$GT_REL" "$DEST/gt_rel.tum"
-  cp "$WORK"/*.png "$DEST/" 2>/dev/null || true
+  cp "$WORK"/*.zip "$WORK"/*.png "$DEST/" 2>/dev/null || true
   cp "$BAG" "$DEST/traj.bag" 2>/dev/null || true
 fi
 

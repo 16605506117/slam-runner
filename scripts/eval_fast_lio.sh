@@ -7,7 +7,14 @@
 # ============================================================
 DS=${1:-kitti_07}
 BAG=${2:-/hy-tmp/datasets/road/kitti/bags/kitti_2011_09_30_drive_0027_synced.bag}
-MAT_OUT=/hy-tmp/catkin_ws/src/FAST_LIO-main/Log/mat_out.txt
+MAT_OUT=${3:-}
+if [ -z "$MAT_OUT" ]; then
+  # 优先用该数据集最新归档的 mat_out（避免 Log/ 被其他运行覆盖，如 N03/H05 跑完会覆盖 Log/）
+  MAT_OUT=$(ls -t /hy-tmp/results/fast_lio/*/*/$DS/mat_out.txt 2>/dev/null | head -1)
+fi
+if [ -z "$MAT_OUT" ]; then
+  MAT_OUT=/hy-tmp/catkin_ws/src/FAST_LIO-main/Log/mat_out.txt
+fi
 # self-locating: assume sibling scripts in same dir
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
@@ -37,6 +44,9 @@ if [ "$DS" = "kitti_07" ]; then
   echo "[*] ATE (SE3 Umeyama)..."
   evo_ape tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --plot --plot_mode xyz \
     --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6
+  echo "[*] traj 叠加图 (evo_traj)"
+  evo_traj tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" --ref "$WORK/gt07.tum" -a -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
+  evo_traj tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" --ref "$WORK/gt07.tum" -a -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
   echo "[*] RPE (trans, delta 1m)..."
   evo_rpe tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
     --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6
@@ -90,6 +100,14 @@ PYEOF
   fi
   echo "[*] WATER: eval_2d.py"
   python3 "$SELF_DIR/eval_2d.py" "$WORK/est.tum" "$GT_REL" "$WORK/est_aligned.tum"
+
+  echo "[*] WATER: evo 全套图 (traj_cmp / APE / RPE)"
+  evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
+  evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
+  echo "[*] WATER: evo_ape (trans_part, 已对齐)"
+  evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+  echo "[*] WATER: evo_rpe (trans_part, delta 1m)"
+  evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
 fi
 
 DEST="/hy-tmp/results/fast_lio/$(date +%F)/$(date +%H-%M)/$DS/eval"
