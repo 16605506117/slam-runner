@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
-"""直线轨迹 2D 对齐评估: 时间最近邻匹配 -> 2D Umeyama -> ATE"""
+"""通用直线轨迹 2D 对齐评估: 时间最近邻匹配 -> 2D Umeyama -> ATE
+用法: eval_2d.py <est.tum> <gt.tum> [out_aligned.tum]
+默认(兼容旧调用): est=w06_fastlio_est.tum gt=w06_gt_rel.tum out=w06_fastlio_est_aligned.tum
+"""
+import sys
 import numpy as np
+
+est_fn = sys.argv[1] if len(sys.argv) > 1 else 'w06_fastlio_est.tum'
+gt_fn = sys.argv[2] if len(sys.argv) > 2 else 'w06_gt_rel.tum'
+out_fn = sys.argv[3] if len(sys.argv) > 3 else 'w06_fastlio_est_aligned.tum'
 
 def load(fn):
     ts, pts = [], []
@@ -19,8 +27,8 @@ def umeyama2d(src, dst):
     t = mu_d - R @ mu_s
     return R, t
 
-gt_ts, gt = load('w06_gt_rel.tum')
-est_ts, est = load('w06_fastlio_est.tum')
+gt_ts, gt = load(gt_fn)
+est_ts, est = load(est_fn)
 
 # 时间最近邻匹配对 (只匹配时间重叠区间)
 idx = [np.argmin(np.abs(gt_ts - t)) for t in est_ts]
@@ -37,5 +45,5 @@ print(f"匹配 {len(est_al)} 帧 | 对齐角 {np.degrees(np.arctan2(R[1,0],R[0,0
 print(f"轨迹长度: est {np.sum(np.linalg.norm(np.diff(est[:,:2],axis=0),axis=1)):.1f}m | gt {np.sum(np.linalg.norm(np.diff(gt[:,:2],axis=0),axis=1)):.1f}m")
 print(f"=== ATE 3D: RMSE {np.sqrt((errs**2).mean()):.3f} | mean {errs.mean():.3f} | median {np.median(errs):.3f} | max {errs.max():.3f} | std {errs.std():.3f}")
 print(f"=== ATE 2D: RMSE {np.sqrt((err2**2).mean()):.3f} | mean {err2.mean():.3f} | max {err2.max():.3f}")
-np.savetxt('w06_fastlio_est_aligned.tum', np.column_stack([est_ts, est_al, np.zeros((len(est_al),4))]), fmt='%.6f')
-print("保存: w06_fastlio_est_aligned.tum")
+np.savetxt(out_fn, np.column_stack([est_ts, est_al, np.zeros((len(est_al),4))]), fmt='%.6f')
+print(f"保存: {out_fn}")

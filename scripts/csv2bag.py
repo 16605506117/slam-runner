@@ -18,9 +18,14 @@ OUT = sys.argv[3] if len(sys.argv) > 3 else None
 if SEQ == 'W06':
     BASE = '/hy-tmp/datasets/water/W06_2_Sequence_57_115'
     OUT = OUT or '/hy-tmp/datasets/water/w06.bag'
-else:
+elif SEQ == 'N03':
     BASE = '/hy-tmp/datasets/water/N03_4_Sequence_440_523'
     OUT = OUT or '/hy-tmp/datasets/water/n03.bag'
+elif SEQ == 'H05':
+    BASE = '/hy-tmp/datasets/water/H05_7_Sequence_160_270'
+    OUT = OUT or '/hy-tmp/datasets/water/h05.bag'
+else:
+    print(f'[!] 未知序列 {SEQ}, 支持 W06/N03/H05'); sys.exit(1)
 
 LID = os.path.join(BASE, 'Lidar')
 print(f"[*] SEQ={SEQ} 输出={OUT}")
@@ -73,6 +78,11 @@ try:
         imu.header = Header(stamp=RTime.from_sec(base_unix + t), frame_id='camera_init')
         imu.linear_acceleration.x, imu.linear_acceleration.y, imu.linear_acceleration.z = ax*9.8, ay*9.8, az*9.8
         imu.angular_velocity.x, imu.angular_velocity.y, imu.angular_velocity.z = math.radians(wx), math.radians(wy), math.radians(wz)
+        # 单位四元数 (9-axis 有效), 否则 LIO-SAM imuPreintegration 报 Invalid quaternion 丢弃全部 IMU
+        imu.orientation.x = 0.0
+        imu.orientation.y = 0.0
+        imu.orientation.z = 0.0
+        imu.orientation.w = 1.0
         # 协方差给个小值, 避免部分节点认为是无效 IMU
         imu.linear_acceleration_covariance[0] = 0.01
         imu.angular_velocity_covariance[0] = 0.01

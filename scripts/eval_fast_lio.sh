@@ -61,10 +61,11 @@ with open(src) as f:
             qy = cr*sp*cy + sr*cp*sy
             qz = cr*cp*sy - sr*sp*cy
             rows.append((t, x, yy, z, qx, qy, qz, qw))
+t0 = rows[0][0]  # 时间归零，与 gt_rel 对齐
 with open(dst, 'w') as f:
     for t, x, y, z, qx, qy, qz, qw in rows:
-        f.write(f"{t:.6f} {x:.6f} {y:.6f} {z:.6f} {qx:.9f} {qy:.9f} {qz:.9f} {qw:.9f}\n")
-print(f"    est: {len(rows)} poses -> {dst}")
+        f.write(f"{t - t0:.6f} {x:.6f} {y:.6f} {z:.6f} {qx:.9f} {qy:.9f} {qz:.9f} {qw:.9f}\n")
+print(f"    est: {len(rows)} poses -> {dst} (t0={t0:.4f})")
 PYEOF
 
   echo "[*] WATER: prepare gt"
@@ -84,12 +85,11 @@ PYEOF
   fi
   if [ -z "$GT_REL" ]; then
     echo "[!] no gt file for $DS under /hy-tmp/datasets/water/, skip eval"
+    echo "    先生成: bash $(dirname "$SELF_DIR")/scripts/gen_water_gt.sh <数据集目录名>"
     exit 0
   fi
-  cp "$WORK/est.tum" w06_fastlio_est.tum
-  cp "$GT_REL" w06_gt_rel.tum
   echo "[*] WATER: eval_2d.py"
-  python3 "$SELF_DIR/eval_2d.py"
+  python3 "$SELF_DIR/eval_2d.py" "$WORK/est.tum" "$GT_REL" "$WORK/est_aligned.tum"
 fi
 
 DEST="/hy-tmp/results/fast_lio/$(date +%F)/$(date +%H-%M)/$DS/eval"
