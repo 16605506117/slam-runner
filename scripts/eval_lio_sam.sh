@@ -124,6 +124,7 @@ PYEOF
   cp "$WORK/est_rel.tum" "$DEST/est_rel.tum"
   cp "$WORK/est_aligned.tum" "$DEST/est_aligned.tum"
   cp "$GT_REL" "$DEST/gt_rel.tum"
+  cp "$WORK"/*.png "$DEST/" 2>/dev/null || true
   cp "$BAG" "$DEST/traj.bag" 2>/dev/null || true
 fi
 
