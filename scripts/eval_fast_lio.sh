@@ -42,14 +42,20 @@ if [ "$DS" = "kitti_07" ]; then
       "$SELF_DIR/kitti_est_gt_to_tum.py" > conv.py
   python3 conv.py
   echo "[*] ATE (SE3 Umeyama)..."
-  evo_ape tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --plot --plot_mode xyz \
-    --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6
+  APE_OUT=$(evo_ape tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --plot --plot_mode xyz \
+    --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1)
+  echo "$APE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  ATE=$(echo "$APE_OUT" | grep -i "rmse" | awk '{print $2}')
   echo "[*] traj 叠加图 (evo_traj)"
   evo_traj tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" --ref "$WORK/gt07.tum" -a -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
   evo_traj tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" --ref "$WORK/gt07.tum" -a -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
   echo "[*] RPE (trans, delta 1m)..."
-  evo_rpe tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
-    --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6
+  RPE_OUT=$(evo_rpe tum "$WORK/gt07.tum" "$WORK/est_kitti.tum" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
+    --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1)
+  echo "$RPE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  RPE=$(echo "$RPE_OUT" | grep -i "rmse" | awk '{print $2}')
+  POSES=$(wc -l < "$WORK/est_kitti.tum")
+  bash "$SELF_DIR/update_summary.sh" "KITTI 07" "| $(date +%F) | FAST-LIO | $ATE | $RPE | $POSES | one-click repro |"
 else
   echo "[*] WATER: mat_out -> est.tum (relative time)"
   python3 - "$MAT_OUT" "$WORK/est.tum" <<'PYEOF'
@@ -99,15 +105,26 @@ PYEOF
     exit 0
   fi
   echo "[*] WATER: eval_2d.py"
-  python3 "$SELF_DIR/eval_2d.py" "$WORK/est.tum" "$GT_REL" "$WORK/est_aligned.tum"
+  E2D=$(python3 "$SELF_DIR/eval_2d.py" "$WORK/est.tum" "$GT_REL" "$WORK/est_aligned.tum")
+  echo "$E2D"
+  ATE2D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate2d=\K[0-9.]+')
+  ATE3D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate3d=\K[0-9.]+')
+  LEN_EST=$(echo "$E2D" | grep -oP 'SUMMARY\|len_est=\K[0-9.]+')
+  LEN_GT=$(echo "$E2D" | grep -oP 'SUMMARY\|len_gt=\K[0-9.]+')
+  POSES=$(echo "$E2D" | grep -oP 'SUMMARY\|poses=\K[0-9]+')
 
   echo "[*] WATER: evo 全套图 (traj_cmp / APE / RPE)"
   evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
   evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
   echo "[*] WATER: evo_ape (trans_part, 已对齐)"
-  evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+  APE_OUT=$(evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1) || true
+  echo "$APE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  APE=$(echo "$APE_OUT" | grep -i "rmse" | awk '{print $2}')
   echo "[*] WATER: evo_rpe (trans_part, delta 1m)"
-  evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+  RPE_OUT=$(evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1) || true
+  echo "$RPE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  RPE=$(echo "$RPE_OUT" | grep -i "rmse" | awk '{print $2}')
+  bash "$SELF_DIR/update_summary.sh" "$DS" "| $(date +%F) | FAST-LIO | $ATE2D | $ATE3D | $RPE | $POSES | len ${LEN_EST}/${LEN_GT}m |"
 fi
 
 DEST="/hy-tmp/results/fast_lio/$(date +%F)/$(date +%H-%M)/$DS/eval"

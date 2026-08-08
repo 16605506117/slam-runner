@@ -10,6 +10,7 @@
 #   --clock      add --clock to rosbag play (required for sim-time launch)
 #   --rate X     bag play speed (default 1.0)
 #   --no-record  skip trajectory recording
+#   --auto-oss   auto-upload archived result to OSS after finish
 # Examples:
 #   bash run_slam.sh lio_sam run_kitti_simtime.launch /hy-tmp/datasets/road/kitti/bags/kitti_2011_09_30_drive_0027_synced.bag kitti_07 --clock --eval
 #   bash run_slam.sh fast_lio mapping_velodyne_kitti.launch /hy-tmp/datasets/road/kitti/bags/kitti_2011_09_30_drive_0027_synced.bag kitti_07 --eval
@@ -20,11 +21,11 @@
 
 ALGO=${1:-}; LAUNCH=${2:-}; BAG=${3:-}; DS=${4:-}
 if [ -z "$ALGO" ] || [ -z "$LAUNCH" ] || [ -z "$BAG" ] || [ -z "$DS" ]; then
-  echo "Usage: run_slam.sh <lio_sam|fast_lio> <launch> <bag> <dataset> [--rviz] [--eval] [--clock] [--rate X] [--no-record]"
+  echo "Usage: run_slam.sh <lio_sam|fast_lio> <launch> <bag> <dataset> [--rviz] [--eval] [--clock] [--rate X] [--no-record] [--auto-oss]"
   exit 1
 fi
 
-RVIZ=0; EVAL=0; CLOCK=0; RATE=1.0; RECORD=1
+RVIZ=0; EVAL=0; CLOCK=0; RATE=1.0; RECORD=1; AUTO_OSS=0
 i=5
 while [ $i -le $# ]; do
   case "${!i}" in
@@ -33,6 +34,7 @@ while [ $i -le $# ]; do
     --clock) CLOCK=1 ;;
     --rate) i=$((i+1)); RATE="${!i}" ;;
     --no-record) RECORD=0 ;;
+    --auto-oss) AUTO_OSS=1 ;;
     *) echo "[!] unknown option: ${!i}"; exit 1 ;;
   esac
   i=$((i+1))
@@ -80,9 +82,10 @@ fi
 
 LOG_DIR=/tmp/run_slam_$(date +%H%M%S)
 mkdir -p "$LOG_DIR"
+START_TIME=$(date '+%F %T %Z')
 REC_BAG=$RESULT_ROOT/$ALGO/traj_$(date +%H%M%S).bag
 echo "[*] algo=$ALGO launch=$LAUNCH ds=$DS"
-echo "[*] bag=$BAG rate=$RATE clock=$CLOCK rviz=$RVIZ eval=$EVAL record=$RECORD"
+echo "[*] bag=$BAG rate=$RATE clock=$CLOCK rviz=$RVIZ eval=$EVAL record=$RECORD auto_oss=$AUTO_OSS"
 echo "[*] logs: $LOG_DIR"
 
 # 1. cleanup
@@ -151,7 +154,22 @@ fi
 
 # 7. archive + eval
 echo "[7/7] archiving..."
-RESULT_ROOT=$RESULT_ROOT bash "$SCRIPTS/archive.sh" "$ALGO" "$DS" "$REC_BAG"
+ARCH_OUT=$(RESULT_ROOT=$RESULT_ROOT bash "$SCRIPTS/archive.sh" "$ALGO" "$DS" "$REC_BAG" 2>&1 | tee "$LOG_DIR/archive.log")
+echo "$ARCH_OUT"
+DEST=$(echo "$ARCH_OUT" | grep -oP '结果已归档: \K.*' | tail -1)
+if [ -n "$DEST" ] && [ -d "$DEST" ]; then
+  {
+    echo "algo: $ALGO"
+    echo "launch: $LAUNCH"
+    echo "bag: $BAG"
+    echo "dataset: $DS"
+    echo "options: rviz=$RVIZ eval=$EVAL clock=$CLOCK rate=$RATE record=$RECORD auto_oss=$AUTO_OSS"
+    echo "start: $START_TIME"
+    echo "end: $(date '+%F %T %Z')"
+    echo "git_commit: $(cd "$TOOLS_DIR" && git rev-parse --short HEAD 2>/dev/null || echo n/a)"
+  } > "$DEST/RUN_INFO.txt"
+  echo "[OK] RUN_INFO.txt -> $DEST"
+fi
 
 if [ $EVAL -eq 1 ]; then
   echo "    evaluating..."
@@ -159,6 +177,19 @@ if [ $EVAL -eq 1 ]; then
     bash "$SCRIPTS/eval_lio_sam.sh" "$REC_BAG" "$DS" "$BAG" || echo "[!] eval_lio_sam failed"
   else
     bash "$SCRIPTS/eval_fast_lio.sh" "$DS" "$BAG" || echo "[!] eval_fast_lio failed"
+  fi
+fi
+
+if [ $AUTO_OSS -eq 1 ] && [ -n "$DEST" ] && [ -d "$DEST" ]; then
+  echo "[8/8] auto-upload to OSS..."
+  TS=$(date +%Y%m%d_%H%M%S)
+  PKG=/tmp/auto_${ALGO}_${DS}_${TS}.tar.gz
+  if tar czf "$PKG" -C "$(dirname "$DEST")" "$(basename "$DEST")" && \
+     oss cp "$PKG" "oss://results/auto_${ALGO}_${DS}_${TS}.tar.gz" 2>&1 | tail -1; then
+    rm -f "$PKG"
+    echo "[OK] 结果已自动上传 OSS: oss://results/auto_${ALGO}_${DS}_${TS}.tar.gz"
+  else
+    echo "[!] auto-oss 失败（检查 oss login 状态）"
   fi
 fi
 

@@ -68,16 +68,22 @@ print(f"    gt: {out_path} ({n} poses)")
 PYEOF
 
   echo "[*] 3/4 计算 ATE (SE3 Umeyama 对齐)"
-  evo_ape tum "$WORK/gt.tum" "$EST" -a --plot --plot_mode xyz \
-    --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -8
+  APE_OUT=$(evo_ape tum "$WORK/gt.tum" "$EST" -a --plot --plot_mode xyz \
+    --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1)
+  echo "$APE_OUT" | grep -iE "rmse|mean|median|max|std" | head -8
+  ATE=$(echo "$APE_OUT" | grep -i "rmse" | awk '{print $2}')
 
   echo "[*] 3.5/4 轨迹叠加图 (evo_traj)"
   evo_traj tum "$WORK/gt.tum" "$EST" --ref "$WORK/gt.tum" -a -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
   evo_traj tum "$WORK/gt.tum" "$EST" --ref "$WORK/gt.tum" -a -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
 
   echo "[*] 4/4 计算 RPE (平移, delta=1m)"
-  evo_rpe tum "$WORK/gt.tum" "$EST" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
-    --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -8
+  RPE_OUT=$(evo_rpe tum "$WORK/gt.tum" "$EST" -a --delta 1 --delta_unit m --plot --plot_mode xyz \
+    --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1)
+  echo "$RPE_OUT" | grep -iE "rmse|mean|median|max|std" | head -8
+  RPE=$(echo "$RPE_OUT" | grep -i "rmse" | awk '{print $2}')
+  POSES=$(wc -l < "$EST")
+  bash "$SELF_DIR/update_summary.sh" "KITTI 07" "| $(date +%F) | LIO-SAM | $ATE | $RPE | $POSES | one-click repro, GPS ON |"
 
   DEST="/hy-tmp/results/lio_sam/$(date +%F)/$(date +%H-%M)/$DS/eval"
   mkdir -p "$DEST"
@@ -120,13 +126,23 @@ PYEOF
   fi
 
   echo "[*] 4/4 计算 ATE 2D (eval_2d.py)"
-  python3 "$SELF_DIR/eval_2d.py" "$WORK/est_rel.tum" "$GT_REL" "$WORK/est_aligned.tum"
+  E2D=$(python3 "$SELF_DIR/eval_2d.py" "$WORK/est_rel.tum" "$GT_REL" "$WORK/est_aligned.tum")
+  echo "$E2D"
+  ATE2D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate2d=\K[0-9.]+')
+  ATE3D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate3d=\K[0-9.]+')
+  LEN_EST=$(echo "$E2D" | grep -oP 'SUMMARY\|len_est=\K[0-9.]+')
+  LEN_GT=$(echo "$E2D" | grep -oP 'SUMMARY\|len_gt=\K[0-9.]+')
+  POSES=$(echo "$E2D" | grep -oP 'SUMMARY\|poses=\K[0-9]+')
 
   echo "[*] 4.5/4 evo 全套图 (traj_cmp / APE / RPE)"
   evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
   evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xyz --save_plot "$WORK/traj_cmp_xyz" 2>&1 | tail -1 || true
-  evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
-  evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1 | grep -iE "rmse|mean|median|max|std" | head -6 || true
+  APE_OUT=$(evo_ape tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --plot --plot_mode xy --save_results "$WORK/ape.zip" --save_plot "$WORK/ape_plot" 2>&1) || true
+  echo "$APE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  RPE_OUT=$(evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1) || true
+  echo "$RPE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
+  RPE=$(echo "$RPE_OUT" | grep -i "rmse" | awk '{print $2}')
+  bash "$SELF_DIR/update_summary.sh" "$DS" "| $(date +%F) | LIO-SAM | $ATE2D | $ATE3D | $RPE | $POSES | len ${LEN_EST}/${LEN_GT}m |"
 
   DEST="/hy-tmp/results/lio_sam/$(date +%F)/$(date +%H-%M)/$DS/eval"
   mkdir -p "$DEST"

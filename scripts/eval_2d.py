@@ -46,10 +46,14 @@ est_al[:, 2] += z_off
 nearest = np.array([np.argmin(np.abs(gt_ts - t)) for t in est_ts])
 errs = np.linalg.norm(est_al - gt[nearest], axis=1)
 err2 = np.linalg.norm(est_al[:, :2] - gt[nearest][:, :2], axis=1)
+len_est = np.sum(np.linalg.norm(np.diff(est[:, :2], axis=0), axis=1))
+len_gt = np.sum(np.linalg.norm(np.diff(gt[:, :2], axis=0), axis=1))
 print(f"匹配 {len(est_al)} 帧 | 对齐角 {np.degrees(np.arctan2(R[1,0],R[0,0])):.1f}deg 平移({t[0]:.2f},{t[1]:.2f})")
-print(f"轨迹长度: est {np.sum(np.linalg.norm(np.diff(est[:,:2],axis=0),axis=1)):.1f}m | gt {np.sum(np.linalg.norm(np.diff(gt[:,:2],axis=0),axis=1)):.1f}m")
+print(f"轨迹长度: est {len_est:.1f}m | gt {len_gt:.1f}m")
 print(f"=== ATE 3D: RMSE {np.sqrt((errs**2).mean()):.3f} | mean {errs.mean():.3f} | median {np.median(errs):.3f} | max {errs.max():.3f} | std {errs.std():.3f}")
 print(f"=== ATE 2D: RMSE {np.sqrt((err2**2).mean()):.3f} | mean {err2.mean():.3f} | max {err2.max():.3f}")
+# 机器可读行（供 eval 脚本自动追加 SUMMARY.md）
+print(f"SUMMARY|ate2d={np.sqrt((err2**2).mean()):.4f}|ate3d={np.sqrt((errs**2).mean()):.4f}|len_est={len_est:.1f}|len_gt={len_gt:.1f}|poses={len(est_al)}")
 np.savetxt(out_fn, np.column_stack([est_ts, est_al, np.zeros((len(est_al),4))]), fmt='%.6f')
 print(f"保存: {out_fn}")
 
