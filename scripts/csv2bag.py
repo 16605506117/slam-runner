@@ -6,9 +6,9 @@ W06/N03: Lidar/*.csv(16线 90°FOV 10Hz) + IMU.csv(50Hz) + GPSBase.csv(5Hz ENU�
 """
 import os, sys, math, struct
 import numpy as np
-import rosbag
+import rosbag, zipfile, cv2
 from rospy import Time as RTime
-from sensor_msgs.msg import PointCloud2, PointField, Imu
+from sensor_msgs.msg import PointCloud2, PointField, Imu, Image as ImgMsg
 from std_msgs.msg import Header
 
 SEQ = sys.argv[1] if len(sys.argv) > 1 else 'W06'
@@ -24,20 +24,45 @@ elif SEQ == 'N03':
 elif SEQ == 'H05':
     BASE = '/hy-tmp/datasets/water/H05_7_Sequence_160_270'
     OUT = OUT or '/hy-tmp/datasets/water/h05.bag'
+elif SEQ == 'N02':
+    # SDK 自带序列（低分辨率版），含官方标定 parameter/Lidar_to_Camera_Left.mat
+    BASE = '/hy-tmp/datasets/water/USVInland_SLAM_SDK_1.0.1/Data_Low_Res_N02_6_Sequence_1275_1285'
+    OUT = OUT or '/hy-tmp/datasets/water/n02.bag'
 else:
-    print(f'[!] 未知序列 {SEQ}, 支持 W06/N03/H05'); sys.exit(1)
+    print(f'[!] 未知序列 {SEQ}, 支持 W06/N03/H05/N02'); sys.exit(1)
 
-LID = os.path.join(BASE, 'Lidar')
+LID = os.path.join(BASE, 'Lidar', 'Lidar') if SEQ == 'N02' else os.path.join(BASE, 'Lidar')
+# ---------- 0. 双目图像 (可选) ----------
+img_zip = os.path.join(os.path.dirname(BASE), SEQ + '_Image.zip')
+IMG_LEFT = os.path.join(os.path.dirname(BASE), SEQ + '_img_left', 'PIC_Left')
+if SEQ == 'N02':
+    # SDK 已解压图像 + 时间戳在 Image/ 下
+    img_zip = os.path.join(BASE, 'Image')
+    IMG_LEFT = os.path.join(BASE, 'Image', 'PIC_Left')
+stereo_ts = []
+if os.path.isdir(IMG_LEFT) and os.path.isdir(os.path.join(BASE, 'Image')):
+    ts_file = os.path.join(BASE, 'Image', 'Stereo_Timestamp.txt')
+    if os.path.isfile(ts_file):
+        stereo_ts = [float(l) for l in open(ts_file)]
+        print(f"[*] 图像: 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
+              f"{stereo_ts[0]:.4f}~{stereo_ts[-1]:.4f}s (IMU 轴, ~20Hz)")
+elif os.path.isfile(img_zip) and os.path.isdir(IMG_LEFT):
+    zf = zipfile.ZipFile(img_zip)
+    stereo_ts = [float(l) for l in zf.read('Stereo_Timestamp.txt').decode().strip().split('\n')]
+    print(f"[*] 图像: 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
+          f"{stereo_ts[0]:.4f}~{stereo_ts[-1]:.4f}s (IMU 轴, ~20Hz)")
 print(f"[*] SEQ={SEQ} 输出={OUT}")
 
 # ---------- 1. IMU 时间基准 (t=0 的 unix 秒) ----------
-imu_lines = open(os.path.join(BASE, 'IMU.csv')).read().strip().split('\n')
+INS_DIR = os.path.join(BASE, 'INS') if SEQ == 'N02' else BASE
+imu_lines = open(os.path.join(INS_DIR, 'IMU.csv')).read().strip().split('\n')
 first = imu_lines[0].split(',')
 base_unix = float(first[-1]) - float(first[0])
 print(f"[*] base_unix = {base_unix:.6f}  (IMU {len(imu_lines)} 行)")
 
 # ---------- 2. 激光帧时间戳 ----------
-ts_start = [float(l) for l in open(os.path.join(BASE, 'Laser_Timestamp_Start.txt'))]
+TS_DIR = os.path.join(BASE, 'Lidar') if SEQ == 'N02' else BASE
+ts_start = [float(l) for l in open(os.path.join(TS_DIR, 'Laser_Timestamp_Start.txt'))]
 print(f"[*] laser timestamps: {len(ts_start)} 帧, 首帧 {ts_start[0]:.4f}s")
 
 # ---------- 3. 点云字段定义 (与 KITTI points_time_fix 输出一致, 22B/点) ----------
@@ -111,8 +136,30 @@ try:
             print(f"[*] LiDAR {i+1}/{len(lidar_files)}")
     print(f"[*] LiDAR 写入 {len(lidar_files)} 帧 -> /points_raw")
 
+    # 图像 (20Hz): 左目 bgr8 -> /left_camera/image (FAST-LIVO2 img_topic)
+    if stereo_ts:
+        img_files = sorted(f for f in os.listdir(IMG_LEFT) if f.endswith('.jpg'))
+        n_img = 0
+        for i, fn in enumerate(img_files):
+            ts = stereo_ts[i] if i < len(stereo_ts) else None
+            if ts is None:
+                continue
+            bgr = cv2.imread(os.path.join(IMG_LEFT, fn))
+            if bgr is None:
+                continue
+            h, w = bgr.shape[:2]
+            img = ImgMsg()
+            img.header = Header(stamp=RTime.from_sec(base_unix + ts), frame_id='camera_init')
+            img.height, img.width, img.encoding, img.is_bigendian, img.step = h, w, 'bgr8', False, w * 3
+            img.data = bgr.tobytes()
+            bag.write('/left_camera/image', img, t=img.header.stamp)
+            n_img += 1
+            if (i+1) % 300 == 0:
+                print(f"[*] Image {i+1}/{len(img_files)}")
+        print(f"[*] 图像写入 {n_img} 张 -> /left_camera/image")
+
     # GPSBase -> ENU 真值 TUM (col2=x 东, col3=y 北, col10=高)
-    gt_lines = open(os.path.join(BASE, 'GPSBase.csv')).read().strip().split('\n')
+    gt_lines = open(os.path.join(INS_DIR, 'GPSBase.csv')).read().strip().split('\n')
     z0 = float(gt_lines[0].split(',')[9])
     gt_tum = OUT.replace('.bag', '_gt.tum')
     with open(gt_tum, 'w') as f:

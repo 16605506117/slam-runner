@@ -1,21 +1,18 @@
-# FAST-LIVO2 水上数据配置 (W06/N03/H05: 16线 90°FOV 前视雷达 + IMU)
-# 基于 avia.yaml 修改：img_en=0 纯 LiDAR+IMU 模式、lidar_type=2 velodyne、
-# timestamp_unit=0 点云 time 字段单位为秒、scan_line=16、外参单位阵近似
+# FAST-LIVO2 N02 配置（SDK 官方序列，标定配套）
+# N02 点云系 x前/y左/z上（标准 velodyne），Rcl 直接用官方 Lidar_to_Camera_Left.mat
 common:
   img_topic: "/left_camera/image"
   lid_topic: "/points_raw"
   imu_topic: "/imu_correct"
-  img_en: 1                  # 双目图像模式（官方标定已配好）
+  img_en: 1
   lidar_en: 1
   ros_driver_bug_fix: false
 
 extrin_calib:
   extrinsic_T: [0.0, 0.0, 0.0]
   extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
-  # Rcl: LiDAR->相机 旋转。官方标定(USVInland_SLAM_SDK parameter/Lidar_to_Camera_Left.mat)
-  # W06 数据系 y前/x右/z高 -> 先转标准 velodyne 系(x前)再应用官方 R，再平移 Pcl
-  # Rcl = R_official * [[0,1,0],[-1,0,0],[0,0,1]]，Pcl = t_official
-  Rcl: [1.0034, -0.0071, 0.0024, 0.0124, -0.1644, -0.9697, -0.0018, 0.9979, -0.1698]
+  # Rcl = 官方 rotM（LiDAR->相机），Pcl = 官方 tvec。N02 系 x前，无需转换
+  Rcl: [-0.0071, -1.0034, 0.0024, -0.1644, -0.0124, -0.9697, 0.9979, 0.0018, -0.1698]
   Pcl: [0.11542, 0.201549, -0.176834]
 
 time_offset:
@@ -26,10 +23,10 @@ time_offset:
 preprocess:
   point_filter_num: 4
   filter_size_surf: 0.1
-  lidar_type: 2              # 2 = velodyne (standard PointCloud2)
+  lidar_type: 2
   scan_line: 16
   blind: 0.5
-  timestamp_unit: 0          # 点云 time 字段单位：0=秒 (water/KITTI bag)
+  timestamp_unit: 0
 
 vio:
   max_iterations: 5
@@ -78,7 +75,7 @@ publish:
   blind_rgb_points: 0.0
 
 evo:
-  seq_name: "W06"
+  seq_name: "N02"
   pose_output_en: false
 
 pcd_save:

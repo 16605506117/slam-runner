@@ -20,7 +20,7 @@
 | 2026-08-05 | FAST-LIO | 0.182 | 0.706 | — | 574 | 2D Umeyama (straight line) |
 | 2026-08-06 | FAST-LIO | 0.203 | 0.719 | 2.188 | 575 | one-click repro, evo 全套图 |
 | 2026-08-06 | LIO-SAM | 3.575 | 3.580 | 0.635 | 289 | 90°FOV 对 LIO-SAM 不友好 |
-| 2026-08-08 | FAST-LIVO2 | 0.1875 | 0.3583 | 0.088 | 572 | LiDAR+IMU only (img_en=0) |
+| 2026-08-08 | FAST-LIVO2 | 0.170 | 0.846 | 0.099 | 573 | pure LiDAR (img_en=0) |
 
 ## N03
 
