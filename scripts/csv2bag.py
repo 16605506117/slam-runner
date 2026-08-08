@@ -34,22 +34,23 @@ else:
 LID = os.path.join(BASE, 'Lidar', 'Lidar') if SEQ == 'N02' else os.path.join(BASE, 'Lidar')
 # ---------- 0. 双目图像 (可选) ----------
 img_zip = os.path.join(os.path.dirname(BASE), SEQ + '_Image.zip')
-IMG_LEFT = os.path.join(os.path.dirname(BASE), SEQ + '_img_left', 'PIC_Left')
+# 校正左目 (640x320, 配官方 camera_matrix) — 视觉融合必须用校正图
+IMG_LEFT = os.path.join(os.path.dirname(BASE), SEQ + '_img_left_rect', 'PIC_Left_Rectified')
 if SEQ == 'N02':
     # SDK 已解压图像 + 时间戳在 Image/ 下
     img_zip = os.path.join(BASE, 'Image')
-    IMG_LEFT = os.path.join(BASE, 'Image', 'PIC_Left')
+    IMG_LEFT = os.path.join(BASE, 'Image', 'PIC_Left_Rectified')
 stereo_ts = []
 if os.path.isdir(IMG_LEFT) and os.path.isdir(os.path.join(BASE, 'Image')):
     ts_file = os.path.join(BASE, 'Image', 'Stereo_Timestamp.txt')
     if os.path.isfile(ts_file):
         stereo_ts = [float(l) for l in open(ts_file)]
-        print(f"[*] 图像: 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
+        print(f"[*] 图像(校正): 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
               f"{stereo_ts[0]:.4f}~{stereo_ts[-1]:.4f}s (IMU 轴, ~20Hz)")
 elif os.path.isfile(img_zip) and os.path.isdir(IMG_LEFT):
     zf = zipfile.ZipFile(img_zip)
     stereo_ts = [float(l) for l in zf.read('Stereo_Timestamp.txt').decode().strip().split('\n')]
-    print(f"[*] 图像: 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
+    print(f"[*] 图像(校正): 左目 {len(os.listdir(IMG_LEFT))} 张, {len(stereo_ts)} 个时间戳, "
           f"{stereo_ts[0]:.4f}~{stereo_ts[-1]:.4f}s (IMU 轴, ~20Hz)")
 print(f"[*] SEQ={SEQ} 输出={OUT}")
 
@@ -126,8 +127,9 @@ try:
         t0 = float(np.min(pts[:, 7]))  # LiDAR 轴帧开始 (57~115s)
         frame_ts = ts_start[i] if i < len(ts_start) else t0  # IMU 轴帧时间 (0~58s)
         xyz = pts[:, :3].astype(np.float32)
-        intensity = pts[:, 3].astype(np.float32)
-        ring = ((pts[:, 4].astype(np.int16) + 15) // 2).astype(np.uint16)  # -15..15 -> 0..15
+        # 官方列定义: x,y,z,HorizontalAng,VerticalAng,Distance,Reflectivity,LidarTime
+        intensity = pts[:, 6].astype(np.float32)   # col7 = Reflectivity
+        ring = ((pts[:, 4].astype(np.int16) + 15) // 2).astype(np.uint16)  # col5=VerticalAng -15..15 -> ring 0..15
         t_rel = (pts[:, 7] - t0).astype(np.float32)  # 帧内 0~0.1s
         stamp = RTime.from_sec(base_unix + frame_ts)  # 用 IMU 轴时间戳
         pc = make_pc2(xyz, intensity, ring, t_rel, stamp)
@@ -158,15 +160,14 @@ try:
                 print(f"[*] Image {i+1}/{len(img_files)}")
         print(f"[*] 图像写入 {n_img} 张 -> /left_camera/image")
 
-    # GPSBase -> ENU 真值 TUM (col2=x 东, col3=y 北, col10=高)
+    # GPSBase -> ENU 真值 TUM (col2=xEast, col3=yNorth; 无高程列, z=0)
     gt_lines = open(os.path.join(INS_DIR, 'GPSBase.csv')).read().strip().split('\n')
-    z0 = float(gt_lines[0].split(',')[9])
     gt_tum = OUT.replace('.bag', '_gt.tum')
     with open(gt_tum, 'w') as f:
         for line in gt_lines:
             v = line.split(',')
-            t, x, y, z = float(v[0]), float(v[1]), float(v[2]), float(v[9]) - z0
-            f.write(f"{base_unix + t:.6f} {x:.6f} {y:.6f} {z:.6f} 0 0 0 1\n")
+            t, x, y = float(v[0]), float(v[1]), float(v[2])
+            f.write(f"{base_unix + t:.6f} {x:.6f} {y:.6f} 0.0 0 0 0 1\n")
     print(f"[*] GT 真值 {len(gt_lines)} 行 -> {gt_tum}")
 finally:
     bag.close()
