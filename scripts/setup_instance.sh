@@ -106,8 +106,9 @@ echo "--- 3.3 水上数据 (w06/n03/h05 bag + 真值, 590M) ---"
 if ls /hy-tmp/datasets/water/*.bag > /dev/null 2>&1; then
   echo "[SKIP] 水上数据已存在"
 else
-  oss cp oss://datasets/road/water_data.tar.gz /tmp/water_data.tar.gz 2>&1 | tail -1
-  tar xzf /tmp/water_data.tar.gz -C /hy-tmp/datasets/water/ 2>/dev/null
+  oss cp oss://datasets/road/water_full.tar.gz /tmp/water_full.tar.gz 2>&1 | tail -1
+  tar xzf /tmp/water_full.tar.gz -C /hy-tmp/datasets/water/ 2>/dev/null
+  rm -f /tmp/water_full.tar.gz
   # 修复可能的嵌套路径（datasets/water/datasets/water/...）
   if [ -d /hy-tmp/datasets/water/datasets ]; then
     mv /hy-tmp/datasets/water/datasets/water/* /hy-tmp/datasets/water/ 2>/dev/null
