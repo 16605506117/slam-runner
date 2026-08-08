@@ -60,8 +60,18 @@ elif [ "$ALGO" = "fast_lio" ]; then
   REC_TOPIC=/Odometry
   WAIT_S=10
   KILL_PAT=fastlio_mapping
+elif [ "$ALGO" = "point_lio" ]; then
+  LAUNCH_DIR=/hy-tmp/catkin_ws/src/Point-LIO-point-lio-with-grid-map/launch
+  REC_TOPIC=/aft_mapped_to_init
+  WAIT_S=12
+  KILL_PAT=pointlio_mapping
+elif [ "$ALGO" = "fast_livo" ]; then
+  LAUNCH_DIR=/hy-tmp/catkin_ws/src/FAST-LIVO2/launch
+  REC_TOPIC=/aft_mapped_to_init
+  WAIT_S=15
+  KILL_PAT=fastlivo_mapping
 else
-  echo "[!] algo must be lio_sam or fast_lio"; exit 1
+  echo "[!] algo must be lio_sam | fast_lio | point_lio | fast_livo"; exit 1
 fi
 
 if [ ! -f "$LAUNCH_DIR/$LAUNCH" ]; then
@@ -95,6 +105,8 @@ pkill -f "rosbag record" 2>/dev/null
 pkill -f "roslaunch" 2>/dev/null
 pkill -f "rosmaster" 2>/dev/null
 pkill -f "fastlio_mapping" 2>/dev/null
+pkill -f "pointlio_mapping" 2>/dev/null
+pkill -f "fastlivo_mapping" 2>/dev/null
 pkill -f "laserMapping" 2>/dev/null
 sleep 3
 
@@ -146,9 +158,9 @@ if [ "$ALGO" = "lio_sam" ]; then
   pkill -INT -f "roslaunch lio_sam"
   sleep 20
 else
-  pkill -INT -f "fastlio_mapping"
-  sleep 5
-  pkill -f "roslaunch fast_lio" 2>/dev/null
+  pkill -INT -f "$KILL_PAT"
+  sleep 6
+  pkill -f "roslaunch $ALGO" 2>/dev/null
   sleep 3
 fi
 
