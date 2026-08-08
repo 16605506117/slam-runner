@@ -1,0 +1,13 @@
+cam_model: Pinhole
+cam_width: 640
+cam_height: 320
+scale: 0.5
+# 校正图内参 (USVInland SDK stereoRectify P1 / Lidar_to_Camera_Left.mat camera_matrix)
+cam_fx: 436.1599689
+cam_fy: 436.1599689
+cam_cx: 294.63199234
+cam_cy: 196.23400116
+cam_d0: 0.0
+cam_d1: 0.0
+cam_d2: 0.0
+cam_d3: 0.0

@@ -1,0 +1,93 @@
+# FAST-LIVO2 水上数据配置 (W06/N03/H05: 16线 90°FOV 前视雷达 + IMU)
+# 基于 avia.yaml 修改：img_en=0 纯 LiDAR+IMU 模式、lidar_type=2 velodyne、
+# timestamp_unit=0 点云 time 字段单位为秒、scan_line=16、外参单位阵近似
+common:
+  img_topic: "/left_camera/image"
+  lid_topic: "/points_raw"
+  imu_topic: "/imu_correct"
+  img_en: 1                  # 双目图像模式（官方标定已配好）
+  lidar_en: 1
+  ros_driver_bug_fix: false
+
+extrin_calib:
+  extrinsic_T: [0.0, 0.0, 0.0]
+  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  # Rcl: LiDAR->相机 旋转。官方标定(USVInland_SLAM_SDK parameter/Lidar_to_Camera_Left.mat)
+  # W06 数据系 y前/x右/z高 -> 先转标准 velodyne 系(x前)再应用官方 R，再平移 Pcl
+  # Rcl = R_official * [[0,1,0],[-1,0,0],[0,0,1]]，Pcl = t_official
+  Rcl: [1.0034, -0.0071, 0.0024, 0.0124, -0.1644, -0.9697, -0.0018, 0.9979, -0.1698]
+  Pcl: [0.11542, 0.201549, -0.176834]
+
+time_offset:
+  imu_time_offset: 0.0
+  img_time_offset: 0.0
+  exposure_time_init: 0.0
+
+preprocess:
+  point_filter_num: 4
+  filter_size_surf: 0.1
+  lidar_type: 2              # 2 = velodyne (standard PointCloud2)
+  scan_line: 16
+  blind: 0.5
+  timestamp_unit: 0          # 点云 time 字段单位：0=秒 (water/KITTI bag)
+
+vio:
+  max_iterations: 5
+  outlier_threshold: 1000
+  img_point_cov: 100
+  patch_size: 8
+  patch_pyrimid_level: 4
+  normal_en: true
+  raycast_en: false
+  inverse_composition_en: false
+  exposure_estimate_en: true
+  inv_expo_cov: 0.1
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  acc_cov: 0.5
+  gyr_cov: 0.3
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0025
+  voxel_size: 0.5
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: false
+
+publish:
+  dense_map_en: false
+  pub_effect_point_en: false
+  pub_plane_en: false
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "W06"
+  pose_output_en: false
+
+pcd_save:
+  pcd_save_en: false
+  type: 0
+  colmap_output_en: false
+  filter_size_pcd: 0.15
+  interval: -1
+
+image_save:
+  img_save_en: false
+  interval: 1

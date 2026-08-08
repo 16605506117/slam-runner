@@ -1,0 +1,8 @@
+<launch>
+    <!-- 给缺 time 字段的点云（KITTI bag）补 per-point 时间；已有 time/t 的直接透传 -->
+    <node pkg="points_time_fix" type="time_fix.py" name="points_time_fix" output="screen" respawn="true">
+        <param name="scan_period" value="0.1"/>
+        <remap from="in" to="points_raw"/>
+        <remap from="out" to="points_raw_fixed"/>
+    </node>
+</launch>

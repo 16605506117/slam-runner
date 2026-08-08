@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>points_time_fix</name>
+  <version>0.1.0</version>
+  <description>Republisher that adds a per-point 'time' field to PointCloud2 messages (for KITTI bags that lack it), so LIO-SAM deskew works.</description>
+
+  <maintainer email="syw2000@todo.todo">syw2000</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+</package>

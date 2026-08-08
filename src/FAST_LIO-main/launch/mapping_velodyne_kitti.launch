@@ -1,0 +1,27 @@
+<launch>
+  <!-- Launch file for velodyne16 VLP-16 LiDAR -->
+
+    <arg name="rviz" default="true" />
+
+    <rosparam command="load" file="$(find fast_lio)/config/velodyne_kitti.yaml" />
+
+    <param name="feature_extract_enable" type="bool" value="0"/>
+    <param name="point_filter_num" type="int" value="4"/>
+    <param name="max_iteration" type="int" value="3" />
+    <param name="filter_size_surf" type="double" value="0.5" />
+    <param name="filter_size_map" type="double" value="0.5" />
+    <param name="cube_side_length" type="double" value="1000" />
+    <param name="runtime_pos_log_enable" type="bool" value="1" />
+        <!-- points_time_fix: KITTI bag 点云无 time 字段，先补时间再喂 FAST-LIO -->
+    <node pkg="points_time_fix" type="time_fix.py" name="points_time_fix" output="screen" respawn="true">
+        <param name="scan_period" value="0.1"/>
+        <remap from="in" to="points_raw"/>
+        <remap from="out" to="points_raw_fixed"/>
+    </node>
+    <node pkg="fast_lio" type="fastlio_mapping" name="laserMapping" output="screen" /> 
+
+    <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_lio)/rviz_cfg/loam_livox.rviz" />
+    </group>
+
+</launch>
