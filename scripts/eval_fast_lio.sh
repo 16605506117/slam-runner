@@ -107,11 +107,11 @@ PYEOF
   echo "[*] WATER: eval_2d.py"
   E2D=$(python3 "$SELF_DIR/eval_2d.py" "$WORK/est.tum" "$GT_REL" "$WORK/est_aligned.tum")
   echo "$E2D"
-  ATE2D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate2d=\K[0-9.]+')
-  ATE3D=$(echo "$E2D" | grep -oP 'SUMMARY\|ate3d=\K[0-9.]+')
-  LEN_EST=$(echo "$E2D" | grep -oP 'SUMMARY\|len_est=\K[0-9.]+')
-  LEN_GT=$(echo "$E2D" | grep -oP 'SUMMARY\|len_gt=\K[0-9.]+')
-  POSES=$(echo "$E2D" | grep -oP 'SUMMARY\|poses=\K[0-9]+')
+  ATE2D=$(echo "$E2D" | grep '^SUMMARY' | grep -oP 'ate2d=\K[0-9.]+')
+  ATE3D=$(echo "$E2D" | grep '^SUMMARY' | grep -oP 'ate3d=\K[0-9.]+')
+  LEN_EST=$(echo "$E2D" | grep '^SUMMARY' | grep -oP 'len_est=\K[0-9.]+')
+  LEN_GT=$(echo "$E2D" | grep '^SUMMARY' | grep -oP 'len_gt=\K[0-9.]+')
+  POSES=$(echo "$E2D" | grep '^SUMMARY' | grep -oP 'poses=\K[0-9]+')
 
   echo "[*] WATER: evo 全套图 (traj_cmp / APE / RPE)"
   evo_traj tum "$GT_REL" "$WORK/est_aligned.tum" --ref "$GT_REL" --align_origin -p --plot_mode xy --save_plot "$WORK/traj_cmp_xy" 2>&1 | tail -1 || true
@@ -124,7 +124,7 @@ PYEOF
   RPE_OUT=$(evo_rpe tum "$GT_REL" "$WORK/est_aligned.tum" --pose_relation trans_part --delta 1 --delta_unit m --plot --plot_mode xy --save_results "$WORK/rpe.zip" --save_plot "$WORK/rpe_plot" 2>&1) || true
   echo "$RPE_OUT" | grep -iE "rmse|mean|median|max|std" | head -6
   RPE=$(echo "$RPE_OUT" | grep -i "rmse" | awk '{print $2}')
-  bash "$SELF_DIR/update_summary.sh" "$DS" "| $(date +%F) | FAST-LIO | $ATE2D | $ATE3D | $RPE | $POSES | len ${LEN_EST}/${LEN_GT}m |"
+  bash "$SELF_DIR/update_summary.sh" "$(echo "$DS" | tr '[:lower:]' '[:upper:]')" "| $(date +%F) | FAST-LIO | $ATE2D | $ATE3D | $RPE | $POSES | len ${LEN_EST}/${LEN_GT}m |"
 fi
 
 DEST="/hy-tmp/results/fast_lio/$(date +%F)/$(date +%H-%M)/$DS/eval"

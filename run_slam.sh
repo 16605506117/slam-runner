@@ -70,9 +70,11 @@ elif [ "$ALGO" = "fast_livo" ]; then
   REC_TOPIC=/aft_mapped_to_init
   WAIT_S=15
   KILL_PAT=fastlivo_mapping
+  ALGO_DIR=fast_livo2   # 归档到独立目录，避免与 FAST-LIO 混淆
 else
   echo "[!] algo must be lio_sam | fast_lio | point_lio | fast_livo"; exit 1
 fi
+ALGO_DIR=${ALGO_DIR:-$ALGO}
 
 if [ ! -f "$LAUNCH_DIR/$LAUNCH" ]; then
   echo "[!] launch not found: $LAUNCH_DIR/$LAUNCH"; exit 1
@@ -93,7 +95,8 @@ fi
 LOG_DIR=/tmp/run_slam_$(date +%H%M%S)
 mkdir -p "$LOG_DIR"
 START_TIME=$(date '+%F %T %Z')
-REC_BAG=$RESULT_ROOT/$ALGO/traj_$(date +%H%M%S).bag
+mkdir -p "$RESULT_ROOT/$ALGO_DIR"
+REC_BAG=$RESULT_ROOT/$ALGO_DIR/traj_$(date +%H%M%S).bag
 echo "[*] algo=$ALGO launch=$LAUNCH ds=$DS"
 echo "[*] bag=$BAG rate=$RATE clock=$CLOCK rviz=$RVIZ eval=$EVAL record=$RECORD auto_oss=$AUTO_OSS"
 echo "[*] logs: $LOG_DIR"
@@ -166,7 +169,7 @@ fi
 
 # 7. archive + eval
 echo "[7/7] archiving..."
-ARCH_OUT=$(RESULT_ROOT=$RESULT_ROOT bash "$SCRIPTS/archive.sh" "$ALGO" "$DS" "$REC_BAG" 2>&1 | tee "$LOG_DIR/archive.log")
+ARCH_OUT=$(RESULT_ROOT=$RESULT_ROOT bash "$SCRIPTS/archive.sh" "$ALGO_DIR" "$DS" "$REC_BAG" 2>&1 | tee "$LOG_DIR/archive.log")
 echo "$ARCH_OUT"
 DEST=$(echo "$ARCH_OUT" | grep -oP '结果已归档: \K.*' | tail -1)
 if [ -n "$DEST" ] && [ -d "$DEST" ]; then
@@ -187,6 +190,10 @@ if [ $EVAL -eq 1 ]; then
   echo "    evaluating..."
   if [ "$ALGO" = "lio_sam" ]; then
     bash "$SCRIPTS/eval_lio_sam.sh" "$REC_BAG" "$DS" "$BAG" || echo "[!] eval_lio_sam failed"
+  elif [ "$ALGO" = "fast_livo" ]; then
+    bash "$SCRIPTS/eval_fast_livo.sh" "$REC_BAG" "$DS" || echo "[!] eval_fast_livo failed"
+  elif [ "$ALGO" = "point_lio" ]; then
+    echo "[!] point_lio 评估暂未接入（轨迹镜像问题修复后提供）"
   else
     bash "$SCRIPTS/eval_fast_lio.sh" "$DS" "$BAG" || echo "[!] eval_fast_lio failed"
   fi

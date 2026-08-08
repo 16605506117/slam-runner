@@ -37,7 +37,7 @@ if [ -z "$LINE" ]; then
 else
   # 有节 → 在节内表格末尾插入（last = 节内最后一个 | 开头的行；遇下一个 ## 节则重置）
   awk -v sec="$LINE" -v row="$ROW" '
-    NR == sec { ins=1; next }
+    NR == sec { ins=1 }
     ins && /^## / { ins=0 }
     ins && /^\|/ { last=NR }
     { lines[NR] = $0 }
