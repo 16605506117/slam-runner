@@ -15,14 +15,17 @@ One-click toolkit on ROS1: start SLAM -> record trajectory -> play data -> trigg
 - **自动评估** Auto ATE/RPE with evo (SE3 Umeyama alignment, headless Agg backend)
 - **自动归档** Time-stamped result archive, never overwritten
 - **可扩展** Add a new algorithm = one `run_slam.sh` invocation + one eval script
+- **多算法支持** Supports FAST-LIO / LIO-SAM / FAST-LIVO2 / Point-LIO / LiDAR_IMU_Init / R3LIVE / FAST-Calib
+- **双目视觉融合** FAST-LIVO2 visual-inertial-lidar fusion with official USVInland calibration
 - **中英双语文档** Bilingual docs
 
 ## Requirements | 依赖
 
 - Ubuntu 20.04 + ROS Noetic
-- catkin workspace with algorithm packages: `lio_sam`, `fast_lio`, `points_time_fix`
+- catkin workspace with algorithm packages: `lio_sam`, `fast_lio`, `fast_livo`, `point_lio`, `points_time_fix`
 - Python: `evo` (conda env), numpy, scipy, rosbag
 - Xvfb (optional, for headless RViz via VNC)
+- Sophus (non-templated version, see FAST-LIVO2 README)
 
 ## Quick Start | 快速开始
 
@@ -39,6 +42,10 @@ bash run_slam.sh fast_lio mapping_velodyne_kitti.launch \
 
 # FAST-LIO on water dataset W06 (2D evaluate)
 bash run_slam.sh fast_lio mapping_water.launch \
+  /hy-tmp/datasets/water/w06.bag w06 --eval
+
+# FAST-LIVO2 on water dataset (visual fusion, official calibration)
+bash run_slam.sh fast_livo mapping_water.launch \
   /hy-tmp/datasets/water/w06.bag w06 --eval
 
 # Disconnection-safe (run in background, watch log)
@@ -64,11 +71,14 @@ slam-runner/
 ├── scripts/
 │   ├── eval_lio_sam.sh   # LIO-SAM evaluation (bag -> TUM -> ATE/RPE)
 │   ├── eval_fast_lio.sh  # FAST-LIO evaluation (mat_out -> TUM -> ATE/RPE, kitti/water)
+│   ├── eval_fast_livo.sh # FAST-LIVO2 evaluation (bag -> TUM -> ATE/RPE, kitti/water)
 │   ├── archive.sh        # archive results to results/<algo>/<date>/<time>/<dataset>/
-│   ├── csv2bag.py        # water dataset csv -> rosbag converter
+│   ├── csv2bag.py        # water dataset csv -> rosbag converter (rectified images + official calib)
 │   ├── eval_2d.py        # straight-line trajectory 2D alignment evaluation
+│   ├── update_summary.sh # append metrics row to results/SUMMARY.md
+│   ├── setup_instance.sh # one-command server instance recovery (ROS + packages + data)
 │   └── kitti_est_gt_to_tum.py  # KITTI mat_out/GT -> TUM
-├── configs/              # launch & param files (deploy to catkin_ws when used)
+├── configs/              # launch & param files per algorithm (fast_lio/fast_livo/lio_sam/point_lio)
 ├── docs/                 # server operation handbook
 └── results/
     └── SUMMARY.md        # metric summary table (the only results tracked in git)
