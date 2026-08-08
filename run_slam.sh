@@ -69,6 +69,15 @@ if [ ! -f "$BAG" ]; then
   echo "[!] bag not found: $BAG"; exit 1
 fi
 
+# sim-time guard: launch sets /use_sim_time=true but --clock not given -> abort early
+if [ $CLOCK -eq 0 ]; then
+  if grep -q "use_sim_time" "$LAUNCH_DIR/$LAUNCH" && grep -q "true" "$LAUNCH_DIR/$LAUNCH"; then
+    echo "[!] $LAUNCH 是 sim-time 模式 (use_sim_time=true)，必须加 --clock！"
+    echo "    正确用法: bash run_slam.sh $ALGO $LAUNCH $BAG $DS --clock [--eval] [--rviz]"
+    exit 1
+  fi
+fi
+
 LOG_DIR=/tmp/run_slam_$(date +%H%M%S)
 mkdir -p "$LOG_DIR"
 REC_BAG=$RESULT_ROOT/$ALGO/traj_$(date +%H%M%S).bag
@@ -89,8 +98,9 @@ sleep 3
 # 2. start SLAM
 echo "[2/7] starting $ALGO ($LAUNCH)..."
 RV_ARG="rviz:=false"
-[ $RVIZ -eq 1 ] && { RV_ARG="rviz:=true"; export DISPLAY=:1 VGL_DISPLAY=egl; }
-setsid nohup bash -c "source /opt/ros/noetic/setup.bash && source /hy-tmp/catkin_ws/devel/setup.bash && roslaunch $ALGO $LAUNCH $RV_ARG" > "$LOG_DIR/slam.log" 2>&1 &
+LAUNCH_PREFIX=""
+[ $RVIZ -eq 1 ] && { RV_ARG="rviz:=true"; export DISPLAY=:1 VGL_DISPLAY=egl; LAUNCH_PREFIX="vglrun"; }
+setsid nohup bash -c "source /opt/ros/noetic/setup.bash && source /hy-tmp/catkin_ws/devel/setup.bash && $LAUNCH_PREFIX roslaunch $ALGO $LAUNCH $RV_ARG" > "$LOG_DIR/slam.log" 2>&1 &
 echo "    started, waiting ${WAIT_S}s..."
 sleep $WAIT_S
 if ! pgrep -f "$KILL_PAT" > /dev/null; then
@@ -105,6 +115,9 @@ if [ $RECORD -eq 1 ]; then
   echo "[3/7] recording $REC_TOPIC -> $REC_BAG"
   setsid nohup rosbag record "$REC_TOPIC" -O "$REC_BAG" > "$LOG_DIR/record.log" 2>&1 &
   sleep 3
+  if [ ! -s "$REC_BAG" ]; then
+    echo "[!] 警告: $REC_BAG 为空/未创建 (sim-time 下等不到 /clock 会这样；确认已加 --clock)"
+  fi
 else
   echo "[3/7] recording skipped"
 fi
